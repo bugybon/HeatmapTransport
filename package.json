@@ -1,0 +1,25 @@
+{
+  "name": "heatmap-sofia-public-transport",
+  "version": "0.0.1",
+  "description": "Heatmap of Sofia by foor or with public transport",
+  "keywords": [
+    "Heatmap",
+    "GIS",
+    "PostGIS"
+  ],
+  "homepage": "https://github.com/bugybon/HeatmapTransport#readme",
+  "bugs": {
+    "url": "https://github.com/bugybon/HeatmapTransport/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bugybon/HeatmapTransport.git"
+  },
+  "license": "ISC",
+  "author": "Momchil Mladenov",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}
