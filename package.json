@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "express": "^5.2.1",
+    "proj4leaflet": "^1.0.2",
     "socket.io": "^4.8.3"
   }
 }

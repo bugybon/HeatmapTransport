@@ -13,7 +13,22 @@ const TILES = {
 };
 
 // ── Init map ─────────────────────────────────────────────────────────────────
-const map = L.map('map', { zoomControl: true }).setView([20, 0], 2);
+const northwest = L.latLng(43,22.5);
+const southeast = L.latLng(42.2,24);
+const bounds = L.latLngBounds(northwest, southeast);
+
+// var crs = new L.Proj.CRS('EPSG:7801',
+//   '+proj=lcc +lat_0=42.6678756833333 +lon_0=25.5 +lat_1=42 +lat_2=43.3333333333333 +x_0=500000 +y_0=4725824.3591 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs +type=crs',
+//   {
+//     resolutions: [
+//       8192, 4096, 2048, 1024, 512, 256, 128
+//     ],
+//     origin: [0, 0]
+//   });
+
+const map = L.map('map', 
+  { /* crs:crs,*/ zoomControl: true , center:[42.696, 23.321], zoom:13, maxBounds:bounds, minZoom:11}
+);
 
 function makeTileLayer(key) {
   const t = TILES[key];
