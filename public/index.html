@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Map Explorer</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <!-- App styles -->
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    Map Explorer
+  </div>
+  <div class="header-meta">
+    <span id="coords-display">0.0000, 0.0000</span>
+    <span id="zoom-display">zoom 2</span>
+  </div>
+</header>
+
+<div class="workspace">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Tile Layer</div>
+      <div class="tile-options">
+        <button class="tile-btn active" data-tile="dark">Dark</button>
+        <button class="tile-btn" data-tile="osm">OpenStreetMap</button>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Controls</div>
+      <div class="ctrl-row">
+        <button class="ctrl-btn" id="btn-locate">⊕ Find My Location</button>
+        <button class="ctrl-btn" id="btn-clear-markers">✕ Clear All Markers</button>
+        <button class="ctrl-btn" id="btn-fit">⤢ Fit Markers</button>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Map Info</div>
+      <div class="info-block">
+        Center: <span class="val" id="info-center">—</span><br>
+        Zoom: <span class="val" id="info-zoom">—</span><br>
+        Markers: <span class="val" id="info-marker-count">0</span>
+      </div>
+    </div>
+
+    <div class="sidebar-section" style="flex:1;">
+      <div class="sidebar-label">Markers</div>
+      <div id="marker-list"></div>
+    </div>
+
+  </aside>
+
+  <!-- Map -->
+  <div id="map"></div>
+</div>
+
+<footer>
+  <div class="status-item"><div class="status-dot"></div> Leaflet 1.9.4</div>
+  <div class="status-item">Click map to place markers</div>
+  <div class="status-item" id="last-action">Ready</div>
+</footer>
+
+<!-- Leaflet JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<!-- App logic -->
+<script src="map.js"></script>
+</body>
+</html>
