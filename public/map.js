@@ -55,7 +55,7 @@ const customIcon = L.divIcon({
   popupAnchor: [0, -10]
 });
 
-function addMarker(latlng) {
+async function addMarker(latlng) {
   const marker = L.marker(latlng, { icon: customIcon })
     .addTo(map)
     .bindPopup(`<b>${latlng.lat.toFixed(5)}</b><br>${latlng.lng.toFixed(5)}`);
@@ -64,6 +64,13 @@ function addMarker(latlng) {
   updateMarkerList();
   updateInfo();
   setStatus(`Marker placed at ${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}`);
+
+  try {
+    const data = await GeoApi.fromPoint(latlng);  // e.latlng = { lat, lng }
+    setStatus(data);
+  } catch (err) {
+    setStatus(err.message);
+  }
 }
 
 map.on('click', e => addMarker(e.latlng));
