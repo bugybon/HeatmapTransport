@@ -67,6 +67,15 @@ async function addMarker(latlng) {
 
   try {
     const data = await GeoApi.fromPoint(latlng);  // e.latlng = { lat, lng }
+    //console.log(data);
+    const dataRows = data.rows[0];
+    const dataMarker = L.marker(L.latLng(dataRows.stop_lat, dataRows.stop_lon), { icon: customIcon })
+      .addTo(map)
+      .bindPopup(`${dataRows.stop_name}`);
+    
+    markers.push(dataMarker);
+    updateMarkerList();
+    updateInfo();
     setStatus(data);
   } catch (err) {
     setStatus(err.message);

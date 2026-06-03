@@ -11,12 +11,5 @@ async function request(path) {
 const GeoApi = {
   // pass a Leaflet latlng object directly: map.on('click', e => GeoApi.fromPoint(e.latlng))
   fromPoint: ({ lat, lng }) =>
-    request(`/geo?lat=${lat}&lng=${lng}`),
-
-  // or pass lat/lng separately
-  reverseGeocode: (lat, lng) =>
-    request(`/geo/reverse?lat=${lat}&lng=${lng}`),
-
-  nearby: (lat, lng, type = 'restaurant', radius = 1000) =>
-    request(`/geo/nearby?lat=${lat}&lng=${lng}&type=${type}&radius=${radius}`),
+    request(`/geo?lat=${lat}&lng=${lng}`)
 };
