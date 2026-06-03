@@ -13,8 +13,8 @@ const TILES = {
 };
 
 // ── Init map ─────────────────────────────────────────────────────────────────
-const northwest = L.latLng(43,22.5);
-const southeast = L.latLng(42.2,24);
+const northwest = L.latLng(43, 22.5);
+const southeast = L.latLng(42.2, 24);
 const bounds = L.latLngBounds(northwest, southeast);
 
 // var crs = new L.Proj.CRS('EPSG:7801',
@@ -26,8 +26,8 @@ const bounds = L.latLngBounds(northwest, southeast);
 //     origin: [0, 0]
 //   });
 
-const map = L.map('map', 
-  { /* crs:crs,*/ zoomControl: true , center:[42.696, 23.321], zoom:13, maxBounds:bounds, minZoom:11}
+const map = L.map('map',
+  { /* crs:crs,*/ zoomControl: true, center: [42.696, 23.321], zoom: 13, maxBounds: bounds, minZoom: 11 }
 );
 
 function makeTileLayer(key) {
@@ -49,6 +49,7 @@ const customIcon = L.divIcon({
     border:2px solid #0d0f14;
     border-radius:50%;
     box-shadow:0 0 8px #5cffe4;
+    opacity:.5;
   "></div>`,
   iconSize: [14, 14],
   iconAnchor: [7, 7],
@@ -66,17 +67,23 @@ async function addMarker(latlng) {
   setStatus(`Marker placed at ${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}`);
 
   try {
-    const data = await GeoApi.fromPoint(latlng);  // e.latlng = { lat, lng }
+    const data = await GeoApi.byFoot(latlng);  // e.latlng = { lat, lng }
     //console.log(data);
-    const dataRows = data.rows[0];
-    const dataMarker = L.marker(L.latLng(dataRows.stop_lat, dataRows.stop_lon), { icon: customIcon })
-      .addTo(map)
-      .bindPopup(`${dataRows.stop_name}`);
-    
-    markers.push(dataMarker);
-    updateMarkerList();
-    updateInfo();
-    setStatus(data);
+    // const dataRows = data.rows[0];
+    // const dataMarker = L.marker(L.latLng(dataRows.stop_lat, dataRows.stop_lon), { icon: customIcon })
+    //   .addTo(map)
+    //   .bindPopup(`${dataRows.stop_name}`);
+
+    // markers.push(dataMarker);
+    // updateMarkerList();
+    //updateInfo();
+    //setStatus();
+    const geojson = JSON.parse(data.rows[0].geojson);
+    console.log(geojson);
+    L.geoJSON({
+      type: 'Feature',
+      geometry: geojson
+    }).addTo(map);
   } catch (err) {
     setStatus(err.message);
   }
@@ -100,12 +107,18 @@ function updateMarkerList() {
     const ll = m.getLatLng();
     const el = document.createElement('div');
     el.className = 'marker-item';
+    // old marker placer
+    // el.innerHTML = `
+    //   <span>${ll.lat.toFixed(3)}, ${ll.lng.toFixed(3)}</span>
+    //   <button class="marker-interactable" data-index="${i}" title="Remove">✕</button>
+    // `;
     el.innerHTML = `
-      <span>${ll.lat.toFixed(3)}, ${ll.lng.toFixed(3)}</span>
-      <button class="marker-remove" data-index="${i}" title="Remove">✕</button>
+      <span>Heatmap ${i}</span>
+      <button class="marker-interactable marker-invisible" data-index="${i}" title="Invisible">☼</button>
+      <button class="marker-interactable marker-remove" data-index="${i}" title="Remove">✕</button>
     `;
     el.addEventListener('click', e => {
-      if (!e.target.classList.contains('marker-remove')) {
+      if (!e.target.classList.contains('marker-interactable')) {
         map.setView(ll, Math.max(map.getZoom(), 8));
         m.openPopup();
       }
@@ -122,6 +135,26 @@ function updateMarkerList() {
       updateMarkerList();
       updateInfo();
       setStatus('Marker removed');
+    });
+  });
+
+  list.querySelectorAll('.marker-invisible').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const idx = +btn.dataset.index;
+
+      if (!e.target.classList.contains('hidden')) {
+        map.removeLayer(markers[idx]);
+        e.target.classList.add('hidden');
+        e.target.innerHTML = '☾︎';
+      } else {
+        map.addLayer(markers[idx]);
+        e.target.classList.remove('hidden');
+        e.target.innerHTML = '☼';
+      }
+
+      updateInfo();
+      setStatus('Marker invisble');
     });
   });
 }

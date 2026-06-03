@@ -201,7 +201,7 @@ header {
 
 .marker-item:hover { border-color: var(--accent2); color: var(--accent2); }
 
-.marker-remove {
+.marker-interactable {
   background: none;
   border: none;
   color: var(--muted);
@@ -212,7 +212,7 @@ header {
   transition: color 0.15s;
 }
 
-.marker-remove:hover { color: var(--accent2); }
+.marker-interactable:hover { color: var(--accent2); }
 
 /* ── Map container ── */
 #map {
@@ -276,3 +276,60 @@ footer {
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── Radio buttons ── */
+.radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.radio-group input[type="radio"] {
+  display: none;
+}
+
+.radio-group label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: 'Syne', sans-serif;
+  font-size: 0.82rem;
+  padding: 7px 12px;
+  cursor: pointer;
+  transition: border-color 0.18s, color 0.18s;
+}
+
+/* the dot indicator */
+.radio-group label::before {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  flex-shrink: 0;
+  transition: border-color 0.18s, background 0.18s, box-shadow 0.18s;
+}
+
+.radio-group label:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.radio-group label:hover::before {
+  border-color: var(--accent);
+}
+
+.radio-group input[type="radio"]:checked + label {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.radio-group input[type="radio"]:checked + label::before {
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}

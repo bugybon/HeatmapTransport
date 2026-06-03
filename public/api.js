@@ -11,5 +11,7 @@ async function request(path) {
 const GeoApi = {
   // pass a Leaflet latlng object directly: map.on('click', e => GeoApi.fromPoint(e.latlng))
   fromPoint: ({ lat, lng }) =>
-    request(`/geo?lat=${lat}&lng=${lng}`)
+    request(`/geo?lat=${lat}&lng=${lng}`),
+  byFoot:({lat,lng}) =>
+    request(`/byfoot?lat=${lat}&lng=${lng}`)
 };
