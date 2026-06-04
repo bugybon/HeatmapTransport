@@ -51,6 +51,7 @@ function getColor(cost_band) {
 
 // ── Markers ──────────────────────────────────────────────────────────────────
 const markers = [];
+const heatmaps = [];
 
 const customIcon = L.divIcon({
   className: '',
@@ -77,8 +78,23 @@ async function addMarker(latlng) {
   updateInfo();
   setStatus(`Marker placed at ${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}`);
 
+  const selected = document.querySelector('input[name="my-group"]:checked');
+  let funcGeoApi;
+  switch(selected?.value){
+    case "byFoot":
+      funcGeoApi = GeoApi.byFoot;
+      break;
+    case "withTransport":
+      funcGeoApi = GeoApi.withTransport;
+      break;
+    case "withTransportHoliday":
+      funcGeoApi = GeoApi.withTransportHoliday;
+      break;
+    default:
+      console.log("Error in selection");
+  }
   try {
-    const data = await GeoApi.byFoot(latlng);  // e.latlng = { lat, lng }
+    const data = await funcGeoApi(latlng);  // e.latlng = { lat, lng }
     //console.log(data);
     // const dataRows = data.rows[0];
     // const dataMarker = L.marker(L.latLng(dataRows.stop_lat, dataRows.stop_lon), { icon: customIcon })
@@ -91,7 +107,7 @@ async function addMarker(latlng) {
     //setStatus();
     const geojson = data.rows[0].featurecollection;
     console.log(geojson);
-    L.geoJSON(geojson, {
+    const heatmap = L.geoJSON(geojson, {
       style: feature => ({
         fillColor: getColor(feature.properties.cost_band),
         fillOpacity: 0.1,
@@ -99,6 +115,7 @@ async function addMarker(latlng) {
         weight: 1
       })
     }).addTo(map);
+    heatmaps.push(heatmap)
   } catch (err) {
     setStatus(err.message);
   }
@@ -146,7 +163,9 @@ function updateMarkerList() {
       e.stopPropagation();
       const idx = +btn.dataset.index;
       map.removeLayer(markers[idx]);
+      map.removeLayer(heatmaps[idx]);
       markers.splice(idx, 1);
+      heatmaps.splice(idx,1);
       updateMarkerList();
       updateInfo();
       setStatus('Marker removed');
@@ -160,10 +179,12 @@ function updateMarkerList() {
 
       if (!e.target.classList.contains('hidden')) {
         map.removeLayer(markers[idx]);
+        map.removeLayer(heatmaps[idx]);
         e.target.classList.add('hidden');
         e.target.innerHTML = '☾︎';
       } else {
         map.addLayer(markers[idx]);
+        map.addLayer(heatmaps[idx]);
         e.target.classList.remove('hidden');
         e.target.innerHTML = '☼';
       }

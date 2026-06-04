@@ -13,5 +13,5 @@ const GeoApi = {
   fromPoint: ({ lat, lng }) =>
     request(`/geo?lat=${lat}&lng=${lng}`),
   byFoot:({lat,lng}) =>
-    request(`/byfoot?lat=${lat}&lng=${lng}`)
+    request(`/byfoot?lat=${lat}&lng=${lng}&time=${60.0}`)
 };
