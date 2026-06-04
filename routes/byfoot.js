@@ -17,21 +17,36 @@ router.get('/', async (req, res) => {
 
     // call your data source here — database, third-party API, etc.
     const result = await pool.query(
-        `select pev1.the_geom, pev1.id,
-            st_asgeojson(st_concavehull(st_collect(st_transform(pev.the_geom,4326)),0.1)) as geojson
-        from ped_edges_vertices_pgr pev1,
-            lateral(
-            SELECT * FROM pgr_drivingDistance(
-                    'Select id,source, target, minutes as cost, -1 as reverse_cost 
-                    from ped_edges',
-                    pev1.id,   -- now accessible via LATERAL
-                    60.0,
-                    false
-                )
-            ) t
-        JOIN ped_edges_vertices_pgr pev ON t.node = pev.id
-        where pev1.id=$1
-        group by pev1.id;`,
+        `    
+        SELECT
+            dd.node,
+            dd.agg_cost,
+            ST_AsGeoJSON(ST_Transform(pev.the_geom, 4326)) AS geojson
+        FROM pgr_drivingDistance(
+            'Select id,source, target, minutes as cost, -1 as reverse_cost 
+            from ped_edges'::text,
+            $1::bigint,   -- now accessible via LATERAL
+            60.0,
+            false
+        ) dd
+        JOIN ped_edges_vertices_pgr pev ON dd.node = pev.id
+        WHERE dd.edge != -1
+        `,
+        // `select pev1.the_geom, pev1.id,
+        //     st_asgeojson(st_concavehull(st_collect(st_transform(pev.the_geom,4326)),0.1, true)) as geojson
+        // from ped_edges_vertices_pgr pev1,
+        //     lateral(
+        //     SELECT * FROM pgr_drivingDistance(
+        //             'Select id,source, target, minutes as cost, -1 as reverse_cost 
+        //             from ped_edges',
+        //             pev1.id,   -- now accessible via LATERAL
+        //             60.0,
+        //             false
+        //         )
+        //     ) t
+        // JOIN ped_edges_vertices_pgr pev ON t.node = pev.id
+        // where pev1.id=$1
+        // group by pev1.id;`,
         [ongrid.rows[0].id]);
     res.json(result);
 });

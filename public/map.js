@@ -38,6 +38,17 @@ function makeTileLayer(key) {
 let currentTileKey = 'dark';
 let tileLayer = makeTileLayer('dark').addTo(map);
 
+function getColor(cost_band) {
+    const colors = {
+        '0-10':  '#FFEDA0',
+        '10-20': '#FEB24C',
+        '20-30': '#FD8D3C',
+        '30-45': '#FC4E2A',
+        '45-60': '#E31A1C'
+    };
+    return colors[cost_band] ?? '#800026';
+}
+
 // ── Markers ──────────────────────────────────────────────────────────────────
 const markers = [];
 
@@ -78,11 +89,15 @@ async function addMarker(latlng) {
     // updateMarkerList();
     //updateInfo();
     //setStatus();
-    const geojson = JSON.parse(data.rows[0].geojson);
+    const geojson = data.rows[0].featurecollection;
     console.log(geojson);
-    L.geoJSON({
-      type: 'Feature',
-      geometry: geojson
+    L.geoJSON(geojson, {
+      style: feature => ({
+        fillColor: getColor(feature.properties.cost_band),
+        fillOpacity: 0.1,
+        color: '#fff',
+        weight: 1
+      })
     }).addTo(map);
   } catch (err) {
     setStatus(err.message);
