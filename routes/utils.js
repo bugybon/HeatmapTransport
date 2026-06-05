@@ -45,19 +45,20 @@ async function heatmapByFoot(lat, lng, time) {
 }
 
 // Step 2 — get available trips from a transit stop
-async function getTripsFromStop(stopId,startTime, accumulatedCost,maxWalkCost, depth) {
+async function getTripsFromStop(stopId, startTime, accumulatedCost, maxWalkCost, depth) {
     const { rows } = await pool.query(`
             SELECT DISTINCT
                 sst.trip_id,
                 sst.arrival_time,
                 EXTRACT(EPOCH FROM (
-                    sst.arrival_time - ($2::interval + ($3 || ' minutes')::interval)
+                    sst.arrival_time - ($2::interval + ($3::float || ' minutes')::interval)
                 )) / 60.0 AS wait_minutes
             FROM spt_stop_times sst
-            WHERE sst.stop_id = $1
-              AND sst.arrival_time > ($2::interval + ($3 || ' minutes')::interval)
-              and sst.arrival_time < ($2::interval + ($4 || ' minutes')::interval)
-            ORDER BY sr.route_id, pe.arrival_time
+            join spt_stops ss on ss.stop_id = sst.stop_id
+            WHERE ss.ogc_fid = $1::int
+              AND sst.arrival_time > ($2::interval + ($3::float || ' minutes')::interval)
+              and sst.arrival_time < ($2::interval + ($4::float || ' minutes')::interval)
+            ORDER BY sst.arrival_time
         `, [stopId, startTime, accumulatedCost, maxWalkCost]);
 
     return rows.map(row => ({
@@ -69,7 +70,7 @@ async function getTripsFromStop(stopId,startTime, accumulatedCost,maxWalkCost, d
 }
 
 // Step 3 — ride transit to next stop
-async function rideToStop(stopId,maxWalkCost, tripId, accumulatedCost, depth) {
+async function rideToStop(stopId, maxWalkCost, tripId, accumulatedCost, depth) {
     const { rows } = await pool.query(`
             SELECT
                 dd.node,
@@ -92,7 +93,7 @@ async function rideToStop(stopId,maxWalkCost, tripId, accumulatedCost, depth) {
         stopId: row.stop_id,
         pedVertex: row.ped_vertex,
         accumulatedCost: accumulatedCost + parseFloat(row.agg_cost),
-        depth: depth + 1
+        depth: depth
     }));
 }
 
@@ -104,7 +105,7 @@ async function recursiveDrivingDistance(startNode, startTime, maxWalkCost, maxDe
     // Step 1 — walk from start ped vertex to nearby transit stops
     async function walkToStops(pedVertexId, accumulatedCost, depth) {
         const res = await pool.query(
-        `    
+            `    
         SELECT
             dd.node,
             dd.agg_cost
@@ -112,14 +113,13 @@ async function recursiveDrivingDistance(startNode, startTime, maxWalkCost, maxDe
             'Select id,source, target, minutes as cost, -1 as reverse_cost 
             from ped_edges'::text,
             $1::bigint,   -- now accessible via LATERAL
-            $2::float,
+            $2::decimal,
             false
         ) dd
-        JOIN ped_edges_vertices_pgr pev ON dd.node = pev.id
         WHERE dd.edge != -1
         `,
-        [pedVertexId, maxDepth-accumulatedCost]);
-        
+            [pedVertexId, maxWalkCost - accumulatedCost]);
+
         for (const row of res.rows) {
             const totalCost = accumulatedCost + parseFloat(row.agg_cost);
             if (!results.has(row.node) || results.get(row.node).totalCost > totalCost) {
@@ -155,7 +155,7 @@ async function recursiveDrivingDistance(startNode, startTime, maxWalkCost, maxDe
 
     // initial walk from start node
     let stopQueue = await walkToStops(startNode, 0, 0);
-
+    //console.log("stopsReachable:" + stopQueue.length)
     while (stopQueue.length > 0) {
         const nextStopQueue = [];
 
@@ -164,8 +164,8 @@ async function recursiveDrivingDistance(startNode, startTime, maxWalkCost, maxDe
             visited.add(stopId);
 
             // get available trips from this stop
-            const trips = await getTripsFromStop(stopId, startTime,accumulatedCost, depth);
-
+            const trips = await getTripsFromStop(stopId, startTime, accumulatedCost,maxWalkCost, depth);
+            //console.log("trips:" + trips.length);
             for (const trip of trips) {
                 // ride to reachable stops on this trip
                 const arrivedStops = await rideToStop(
@@ -173,20 +173,21 @@ async function recursiveDrivingDistance(startNode, startTime, maxWalkCost, maxDe
                     maxWalkCost,
                     trip.tripId,
                     trip.accumulatedCost,
-                    depth + 1
+                    trip.depth + 1
                 );
-
+                //console.log("Arrived Stops: " + arrivedStops.length)
                 for (const arrived of arrivedStops) {
+                    //console.log("testing stopID:" + arrived.pedVertex);
                     if (visited.has(arrived.stopId)) continue;
 
                     // walk from arrived stop to nearby stops
-                    if (arrived.pedVertex && !walkVisited.has(arrived.pedVertex)) {
-                        walkVisited.add(arrived.pedVertex);
-
+                    if (arrived.pedVertex) {
+                        //walkVisited.add(arrived.pedVertex);
+                        //console.log("from stopID:" + arrived.pedVertex);
                         const newStops = await walkToStops(
                             arrived.pedVertex,
                             arrived.accumulatedCost,
-                            depth + 1
+                            arrived.depth + 1
                         );
                         nextStopQueue.push(...newStops);
                     }
@@ -196,12 +197,12 @@ async function recursiveDrivingDistance(startNode, startTime, maxWalkCost, maxDe
             }
         }
 
-        stopQueue = nextStopQueue;
+        stopQueue = [...nextStopQueue];
     }
 
     // return array of { node, totalCost } pairs from all walk queries
-    console.log({rows:[...results.values()].map(({node, totalCost}) => ({ node:node, agg_cost: totalCost }))});
-    return {rows: [...results.values()].map(({node, totalCost}) => ({ node:node, agg_cost: totalCost }))};
+    console.log({ rows: [...results.values()].map(({ node, totalCost }) => ({ node: node, agg_cost: totalCost })) });
+    return { rows: [...results.values()].map(({ node, totalCost }) => ({ node: node, agg_cost: totalCost })) };
 }
 
 async function getNextDeparture(nodeId, startTime, currentCost) {
@@ -248,8 +249,8 @@ async function heatmapWithTransport(lat, lng, time, starttime) {
         LIMIT 1;`,
         [lng, lat]);
 
-    return recursiveDrivingDistance(ongrid.rows[0].id,starttime,time)
-    
+    return recursiveDrivingDistance(ongrid.rows[0].id, starttime, time)
+
 }
 
 module.exports = { heatmapByFoot, heatmapWithTransport };

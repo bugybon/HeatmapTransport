@@ -5,7 +5,6 @@ router.use(async (req, res, next) => {
     const originalJson = res.json.bind(res);
 
     res.json = async (body) => {
-
         const nodes = body.rows.map(r => r.node);
         const costMap = Object.fromEntries(
             body.rows.map(r => [r.node, r.agg_cost])

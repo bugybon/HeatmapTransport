@@ -115,9 +115,10 @@ async function addMarker(latlng) {
         weight: 1
       })
     }).addTo(map);
-    heatmaps.push(heatmap)
+    heatmaps.push(heatmap);
   } catch (err) {
     setStatus(err.message);
+    heatmaps.push(null);
   }
 }
 
