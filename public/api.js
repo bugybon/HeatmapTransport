@@ -13,5 +13,7 @@ const GeoApi = {
   fromPoint: ({ lat, lng }) =>
     request(`/geo?lat=${lat}&lng=${lng}`),
   byFoot:({lat,lng}) =>
-    request(`/byfoot?lat=${lat}&lng=${lng}&time=${60.0}`)
+    request(`/byfoot?lat=${lat}&lng=${lng}&time=${60.0}`),
+  withTransport:({lat,lng})=>
+    request(`/withtransport?lat=${lat}&lng=${lng}&time=${10.0}&starttime=${'08:00:00'}`)
 };
