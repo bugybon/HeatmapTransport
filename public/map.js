@@ -180,12 +180,12 @@ function updateMarkerList() {
 
       if (!e.target.classList.contains('hidden')) {
         map.removeLayer(markers[idx]);
-        map.removeLayer(heatmaps[idx]);
+        if(heatmaps[idx]!== null)map.removeLayer(heatmaps[idx]);
         e.target.classList.add('hidden');
         e.target.innerHTML = '☾︎';
       } else {
         map.addLayer(markers[idx]);
-        map.addLayer(heatmaps[idx]);
+        if(heatmaps[idx]!== null)map.addLayer(heatmaps[idx]);
         e.target.classList.remove('hidden');
         e.target.innerHTML = '☼';
       }

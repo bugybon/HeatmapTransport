@@ -7,7 +7,8 @@ const pool = new Pool({
     user: process.env.PGUSER,
     password: process.env.PGPASS,
     port: process.env.PGPORT,
-    ssl: process.env.PGSSL
+    ssl: process.env.PGSSL,
+    idleTimeoutMillis:0
 });
 
 pool.on('error', (err) => console.error('pg pool error', err));
