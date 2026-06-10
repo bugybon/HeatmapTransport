@@ -103,53 +103,42 @@ async function recursiveDrivingDistance(startNode, startTime, maxWalkCost, maxDe
     const results = new Map();  // node_id -> { node, totalCost }
 
     // Step 1 — walk from start ped vertex to nearby transit stops
-    async function walkToStops(pedVertexId, accumulatedCost, depth) {
-        const res = await pool.query(
-            `    
-        SELECT
-            dd.node,
-            dd.agg_cost
-        FROM pgr_drivingDistance(
-            'Select id,source, target, minutes as cost, -1 as reverse_cost 
-            from ped_edges'::text,
-            $1::bigint,   -- now accessible via LATERAL
-            $2::decimal,
-            false
-        ) dd
-        WHERE dd.edge != -1
-        `,
-            [pedVertexId, maxWalkCost - accumulatedCost]);
 
-        for (const row of res.rows) {
+    async function walkToStops(pedVertexId, accumulatedCost, depth) {
+        const { rows } = await pool.query(`
+            SELECT
+                dd.node,
+                dd.agg_cost,
+                s.ogc_fid        AS stop_id,   -- null if no stop at this vertex
+                s.wkb_geometry   AS stop_geom
+            FROM pgr_drivingDistance(
+                'SELECT id, source, target, minutes AS cost, -1 AS reverse_cost
+                FROM ped_edges'::text,
+                $1::bigint,
+                $2::decimal,
+                false
+            ) dd
+            LEFT JOIN spt_stops s ON s.id_ped_vertex = dd.node  -- left join keeps all vertices
+            WHERE dd.edge != -1
+        `, [pedVertexId, maxWalkCost - accumulatedCost]);
+
+        // update walk results map (all vertices)
+        for (const row of rows) {
             const totalCost = accumulatedCost + parseFloat(row.agg_cost);
             if (!results.has(row.node) || results.get(row.node).totalCost > totalCost) {
                 results.set(row.node, { node: row.node, totalCost });
             }
         }
 
-        const { rows } = await pool.query(`
-            SELECT
-                dd.node,
-                dd.agg_cost,
-                s.ogc_fid   AS stop_id,
-                s.wkb_geometry
-            FROM pgr_drivingDistance(
-                'SELECT id, source, target, minutes as cost FROM ped_edges',
-                $1::bigint, $2::float,
-                false
-            ) dd
-            JOIN spt_stops s ON s.id_ped_vertex = dd.node
-            WHERE dd.edge != -1
-        `, [pedVertexId, maxWalkCost - accumulatedCost]);
-
-        // store walk results
-
-        return rows.map(row => ({
-            stopId: row.stop_id,
-            pedVertex: row.node,
-            accumulatedCost: accumulatedCost + parseFloat(row.agg_cost),
-            depth
-        }));
+        // return only rows that have a stop (stop_id not null)
+        return rows
+            .filter(row => row.stop_id !== null)
+            .map(row => ({
+                stopId:          row.stop_id,
+                pedVertex:       row.node,
+                accumulatedCost: accumulatedCost + parseFloat(row.agg_cost),
+                depth
+            }));
     }
     // --- main loop ---
 
