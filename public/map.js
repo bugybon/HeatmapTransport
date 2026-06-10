@@ -87,8 +87,8 @@ async function addMarker(latlng) {
     case "withTransport":
       funcGeoApi = GeoApi.withTransport;
       break;
-    case "withTransportHoliday":
-      funcGeoApi = GeoApi.withTransportHoliday;
+    case "withTransportWorkers":
+      funcGeoApi = GeoApi.withTransportWorkers;
       break;
     default:
       console.log("Error in selection");

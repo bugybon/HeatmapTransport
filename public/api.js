@@ -15,5 +15,7 @@ const GeoApi = {
   byFoot:({lat,lng}) =>
     request(`/byfoot?lat=${lat}&lng=${lng}&time=${20.0}`),
   withTransport:({lat,lng})=>
-    request(`/withtransport?lat=${lat}&lng=${lng}&time=${20.0}&starttime=${"08:00:00"}`)
+    request(`/withtransport?lat=${lat}&lng=${lng}&time=${20.0}&starttime=${"08:00:00"}`),
+  withTransportWorkers:({lat,lng})=>
+    request(`/withtransportworkers?lat=${lat}&lng=${lng}&time=${20.0}&starttime=${"08:00:00"}`)
 };

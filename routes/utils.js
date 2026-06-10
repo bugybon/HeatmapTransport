@@ -1,4 +1,6 @@
 const pool = require('../db/pool');
+const Worker = require('node:worker_threads');
+const path = require('node:path');
 
 async function heatmapByFoot(lat, lng, time) {
     const ongrid = await pool.query(
@@ -242,4 +244,124 @@ async function heatmapWithTransport(lat, lng, time, starttime) {
 
 }
 
-module.exports = { heatmapByFoot, heatmapWithTransport };
+function spawnWorker(data) {
+    return new Promise((resolve, reject) => {
+        const worker = new Worker(path.resolve(__dirname, 'worker.js'), {
+            workerData: {
+                ...data,
+                connectionString: process.env.DATABASE_URL
+            }
+        });
+        worker.on('message', resolve);
+        worker.on('error', reject);
+    });
+}
+
+async function recursiveDrivingDistanceWorkers(startNode, startTime, maxWalkCost, maxDepth = 5) {
+    const visited     = new Set();   // visited transit stops
+    const walkVisited = new Set();   // visited ped vertices
+    const results     = new Map();   // ped_vertex -> { node, totalCost }
+
+    // initial walk from start node — run directly, not in worker
+    const { rows: initRows } = await pool.query(`
+        SELECT
+            dd.node,
+            dd.agg_cost,
+            s.ogc_fid       AS stop_id,
+            s.wkb_geometry  AS stop_geom
+        FROM pgr_drivingDistance(
+            'SELECT id, source, target, minutes AS cost, -1 AS reverse_cost
+            FROM ped_edges'::text,
+            $1::bigint, $2::decimal, false
+        ) dd
+        LEFT JOIN spt_stops s ON s.id_ped_vertex = dd.node
+        WHERE dd.edge != -1
+    `, [startNode, maxWalkCost]);
+
+    // seed results and first stop queue
+    let stopQueue = [];
+    for (const row of initRows) {
+        const totalCost = parseFloat(row.agg_cost);
+        results.set(row.node, { node: row.node, totalCost });
+        walkVisited.add(row.node);
+
+        if (row.stop_id && !visited.has(row.stop_id)) {
+            visited.add(row.stop_id);
+            stopQueue.push({
+                stopId:          row.stop_id,
+                pedVertexId:     row.node,
+                accumulatedCost: totalCost,
+                startTime,
+                maxWalkCost,
+                depth:           0
+            });
+        }
+    }
+
+    // ── depth loop ────────────────────────────────────────────────────────────
+    while (stopQueue.length > 0 && stopQueue[0].depth < maxDepth) {
+
+        // deduplicate before spawning — no wasted workers
+        const toProcess = stopQueue.filter(s => {
+            if (walkVisited.has(s.pedVertexId)) return false;
+            walkVisited.add(s.pedVertexId);
+            return true;
+        });
+
+        // all stops at this depth level run in parallel
+        const workerResults = await Promise.all(
+            toProcess.map(stop => spawnWorker(stop))
+        );
+
+        const nextStopQueue = [];
+
+        for (const { walkResults, nextStops } of workerResults) {
+            // merge walk results into main map
+            for (const r of walkResults) {
+                if (!results.has(r.node) || results.get(r.node).totalCost > r.totalCost) {
+                    results.set(r.node, { node: r.node, totalCost: r.totalCost });
+                }
+            }
+
+            // queue next stops, skip already visited
+            for (const stop of nextStops) {
+                if (!stop.pedVertex) continue;
+                if (visited.has(stop.stopId)) continue;
+                visited.add(stop.stopId);
+
+                nextStopQueue.push({
+                    stopId:          stop.stopId,
+                    pedVertexId:     stop.pedVertex,
+                    accumulatedCost: stop.accumulatedCost,
+                    startTime,
+                    maxWalkCost,
+                    depth:           stop.depth
+                });
+            }
+        }
+
+        stopQueue = nextStopQueue;
+    }
+
+    console.log({ rows: [...results.values()] });
+    return {
+        rows: [...results.values()].map(({ node, totalCost }) => ({
+            node,
+            agg_cost: totalCost
+        }))
+    };
+}
+
+async function heatmapWithTransportWorkers(lat, lng, time, starttime) {
+    const ongrid = await pool.query(
+        `SELECT *
+        FROM ped_edges_vertices_pgr pe 
+        ORDER BY pe.the_geom  <-> ST_Transform(ST_SetSRID(ST_MakePoint($1, $2), 4326),7801)
+        LIMIT 1;`,
+        [lng, lat]);
+
+    return recursiveDrivingDistanceWorkers(ongrid.rows[0].id, starttime, time)
+
+}
+
+module.exports = { heatmapByFoot, heatmapWithTransport, heatmapWithTransportWorkers };

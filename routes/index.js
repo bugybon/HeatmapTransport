@@ -101,5 +101,6 @@ router.use(async (req, res, next) => {
 router.use('/geo', require('./geo'));
 router.use('/byfoot', require('./byfoot'))
 router.use('/withtransport',require('./withtransport'))
+router.use('/withtransportworkers', require('./withtransportworkers'))
 
 module.exports = router;
