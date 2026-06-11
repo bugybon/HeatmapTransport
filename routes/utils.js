@@ -333,7 +333,6 @@ async function recursiveDrivingDistanceWorkers(startNode, startTime, maxWalkCost
             for (const stop of nextStops) {
                 if (!stop.pedVertex) continue;
                 if (visited.has(stop.stopId)) continue;
-                visited.add(stop.stopId);
 
                 nextStopQueue.push({
                     stopId:          stop.stopId,
