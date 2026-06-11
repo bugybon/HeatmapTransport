@@ -1,5 +1,5 @@
 const pool = require('../db/pool');
-const Worker = require('node:worker_threads');
+const { Worker } = require('node:worker_threads');
 const path = require('node:path');
 
 async function heatmapByFoot(lat, lng, time) {
@@ -245,15 +245,22 @@ async function heatmapWithTransport(lat, lng, time, starttime) {
 }
 
 function spawnWorker(data) {
+    console.log('spawning worker with data:', data);  // add this
     return new Promise((resolve, reject) => {
-        const worker = new Worker(path.resolve(__dirname, 'worker.js'), {
+        const worker = new Worker(path.resolve(__dirname, './workers.js'), {
             workerData: {
                 ...data,
                 connectionString: process.env.DATABASE_URL
             }
         });
         worker.on('message', resolve);
-        worker.on('error', reject);
+        worker.on('error', (err) => {
+            console.error('worker error', err);  // catch spawn errors
+            reject(err);
+        });
+        worker.on('exit', (code) => {
+            if (code !== 0) reject(new Error(`worker exited with code ${code}`));
+        });
     });
 }
 
@@ -286,14 +293,14 @@ async function recursiveDrivingDistanceWorkers(startNode, startTime, maxWalkCost
         walkVisited.add(row.node);
 
         if (row.stop_id && !visited.has(row.stop_id)) {
-            visited.add(row.stop_id);
+            //visited.add(row.stop_id);
             stopQueue.push({
                 stopId:          row.stop_id,
                 pedVertexId:     row.node,
                 accumulatedCost: totalCost,
                 startTime,
                 maxWalkCost,
-                depth:           0
+                depth:           1
             });
         }
     }
@@ -303,11 +310,10 @@ async function recursiveDrivingDistanceWorkers(startNode, startTime, maxWalkCost
 
         // deduplicate before spawning — no wasted workers
         const toProcess = stopQueue.filter(s => {
-            if (walkVisited.has(s.pedVertexId)) return false;
-            walkVisited.add(s.pedVertexId);
+            if (visited.has(s.stopId)) return false;
+            visited.add(s.stopId);
             return true;
         });
-
         // all stops at this depth level run in parallel
         const workerResults = await Promise.all(
             toProcess.map(stop => spawnWorker(stop))
@@ -322,7 +328,7 @@ async function recursiveDrivingDistanceWorkers(startNode, startTime, maxWalkCost
                     results.set(r.node, { node: r.node, totalCost: r.totalCost });
                 }
             }
-
+            console.log("baseNextStops:", nextStops);
             // queue next stops, skip already visited
             for (const stop of nextStops) {
                 if (!stop.pedVertex) continue;
