@@ -10,7 +10,85 @@ router.use(async (req, res, next) => {
             body.rows.map(r => [r.node, r.agg_cost])
         );
 
+        // const result = await pool.query(`
+        //     SELECT json_build_object(
+        //         'type',     'FeatureCollection',
+        //         'features', json_agg(ST_AsGeoJSON(t.*)::json)
+        //     ) AS featurecollection
+        //     FROM (
+        //         SELECT
+        //             cost_band,
+        //             ST_Transform(
+        //                 ST_Difference(
+        //                     current_hull,
+        //                     COALESCE(inner_hull,  ST_SetSRID('GEOMETRYCOLLECTION EMPTY'::geometry, 4326))
+        //                 ),
+        //                 4326
+        //             ) AS geometry
+        //         FROM (
+        //             SELECT
+        //                 cost_band,
+        //                 min_cost,
+        //                 ST_Transform(ST_ConcaveHull(ST_Collect(the_geom), 0.5, true),4326) AS current_hull,
+        //                 LAG( ST_Transform(ST_ConcaveHull(ST_Collect(the_geom), 0.5, true),4326))
+        //                     OVER (ORDER BY min_cost)                     AS inner_hull
+        //             FROM (
+        //                 SELECT
+        //                     pev.the_geom,
+        //                     CASE
+        //                         WHEN unnest_cost <= 10 THEN '0-10'
+        //                         WHEN unnest_cost <= 20 THEN '10-20'
+        //                         WHEN unnest_cost <= 30 THEN '20-30'
+        //                         WHEN unnest_cost <= 45 THEN '30-45'
+        //                         ELSE                        '45-60'
+        //                     END AS cost_band,
+        //                     MIN(unnest_cost) OVER (
+        //                         PARTITION BY CASE
+        //                             WHEN unnest_cost <= 10 THEN '0-10'
+        //                             WHEN unnest_cost <= 20 THEN '10-20'
+        //                             WHEN unnest_cost <= 30 THEN '20-30'
+        //                             WHEN unnest_cost <= 45 THEN '30-45'
+        //                             ELSE                        '45-60'
+        //                         END
+        //                     ) AS min_cost
+        //                 FROM UNNEST($1::int[], $2::float[]) AS t(node_id, unnest_cost)
+        //                 JOIN ped_edges_vertices_pgr pev ON t.node_id = pev.id
+        //             ) t
+        //             GROUP BY cost_band, min_cost
+        //         ) t
+        //     ) t
+        // `, [
+        //     nodes,
+        //     nodes.map(n => costMap[n])
+        // ]);
         const result = await pool.query(`
+            -- SELECT json_build_object(
+            --     'type',     'FeatureCollection',
+            --     'features', json_agg(ST_AsGeoJSON(t.*)::json)
+            -- ) AS featurecollection
+            -- FROM (
+            --     SELECT
+            --         cost_band,
+            --         ST_Transform(
+            --             ST_ConcaveHull(ST_Collect(t.the_geom), 0., true),
+            --             4326
+            --         ) AS geometry
+            --     FROM (
+            --         SELECT
+            --             pev.the_geom,
+            --             CASE
+            --                 WHEN unnest_cost <= 10 THEN '0-10'
+            --                 WHEN unnest_cost <= 20 THEN '10-20'
+            --                 WHEN unnest_cost <= 30 THEN '20-30'
+            --                 WHEN unnest_cost <= 45 THEN '30-45'
+            --                 ELSE                        '45-60'
+            --             END AS cost_band
+            --         FROM
+            --             UNNEST($1::int[], $2::float[]) AS t(node_id, unnest_cost)
+            --         JOIN ped_edges_vertices_pgr pev ON t.node_id = pev.id
+            --     ) t
+            --     GROUP BY cost_band
+            -- ) t
             SELECT json_build_object(
                 'type',     'FeatureCollection',
                 'features', json_agg(ST_AsGeoJSON(t.*)::json)
@@ -19,80 +97,29 @@ router.use(async (req, res, next) => {
                 SELECT
                     cost_band,
                     ST_Transform(
-                        ST_Difference(
-                            current_hull,
-                            COALESCE(inner_hull,  ST_SetSRID('GEOMETRYCOLLECTION EMPTY'::geometry, 4326))
-                        ),
+                        ST_ConcaveHull(ST_Collect(the_geom), 0.2, true),
                         4326
                     ) AS geometry
                 FROM (
                     SELECT
-                        cost_band,
-                        min_cost,
-                        ST_Transform(ST_ConcaveHull(ST_Collect(the_geom), 0.5, true),4326) AS current_hull,
-                        LAG( ST_Transform(ST_ConcaveHull(ST_Collect(the_geom), 0.5, true),4326))
-                            OVER (ORDER BY min_cost)                     AS inner_hull
-                    FROM (
-                        SELECT
-                            pev.the_geom,
-                            CASE
-                                WHEN unnest_cost <= 10 THEN '0-10'
-                                WHEN unnest_cost <= 20 THEN '10-20'
-                                WHEN unnest_cost <= 30 THEN '20-30'
-                                WHEN unnest_cost <= 45 THEN '30-45'
-                                ELSE                        '45-60'
-                            END AS cost_band,
-                            MIN(unnest_cost) OVER (
-                                PARTITION BY CASE
-                                    WHEN unnest_cost <= 10 THEN '0-10'
-                                    WHEN unnest_cost <= 20 THEN '10-20'
-                                    WHEN unnest_cost <= 30 THEN '20-30'
-                                    WHEN unnest_cost <= 45 THEN '30-45'
-                                    ELSE                        '45-60'
-                                END
-                            ) AS min_cost
-                        FROM UNNEST($1::int[], $2::float[]) AS t(node_id, unnest_cost)
-                        JOIN ped_edges_vertices_pgr pev ON t.node_id = pev.id
-                    ) t
-                    GROUP BY cost_band, min_cost
+                        pev.the_geom,
+                        b.cost_band
+                    FROM UNNEST($1::int[], $2::float[]) AS t(node_id, unnest_cost)
+                    JOIN ped_edges_vertices_pgr pev ON t.node_id = pev.id
+                    JOIN (VALUES
+                        (10, '0-10'),
+                        (20, '10-20'),
+                        (30, '20-30'),
+                        (45, '30-45'),
+                        (60, '45-60')
+                    ) AS b(max_cost, cost_band) ON unnest_cost <= b.max_cost  -- point included in all bands it falls under
                 ) t
+                GROUP BY cost_band
             ) t
-        `, [
-            nodes,
-            nodes.map(n => costMap[n])
+     `, [
+            nodes,                          // $1 — array of node ids
+            nodes.map(n => costMap[n])      // $2 — matching array of costs
         ]);
-    //     const result = await pool.query(`
-            
-    // SELECT json_build_object(
-    //     'type',     'FeatureCollection',
-    //     'features', json_agg(ST_AsGeoJSON(t.*)::json)
-    // ) AS featurecollection
-    // FROM (
-    //     SELECT
-    //         cost_band,
-    //         ST_Transform(
-    //             ST_ConcaveHull(ST_Collect(t.the_geom), 0.7, true),
-    //             4326
-    //         ) AS geometry
-    //     FROM (
-    //         SELECT
-    //             pev.the_geom,
-    //             CASE
-    //                 WHEN unnest_cost <= 10 THEN '0-10'
-    //                 WHEN unnest_cost <= 20 THEN '10-20'
-    //                 WHEN unnest_cost <= 30 THEN '20-30'
-    //                 WHEN unnest_cost <= 45 THEN '30-45'
-    //                 ELSE                        '45-60'
-    //             END AS cost_band
-    //         FROM
-    //             UNNEST($1::int[], $2::float[]) AS t(node_id, unnest_cost)
-    //          JOIN ped_edges_vertices_pgr pev ON t.node_id = pev.id
-    //     ) t
-    //     GROUP BY cost_band
-    // ) t`, [
-    //         nodes,                          // $1 — array of node ids
-    //         nodes.map(n => costMap[n])      // $2 — matching array of costs
-    //     ]);
         return originalJson(result);
     };
     next();
@@ -100,7 +127,7 @@ router.use(async (req, res, next) => {
 
 router.use('/geo', require('./geo'));
 router.use('/byfoot', require('./byfoot'))
-router.use('/withtransport',require('./withtransport'))
+router.use('/withtransport', require('./withtransport'))
 router.use('/withtransportworkers', require('./withtransportworkers'))
 
 module.exports = router;

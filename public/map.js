@@ -94,7 +94,9 @@ async function addMarker(latlng) {
       console.log("Error in selection");
   }
   try {
-    const data = await funcGeoApi(latlng);  // e.latlng = { lat, lng }
+    const starttime = `${document.getElementById('val-hours').textContent}:${document.getElementById('val-minutes').textContent}:00`;
+    const time = parseFloat(document.getElementById('val-duration').textContent)
+    const data = await funcGeoApi(latlng, time, starttime);  // e.latlng = { lat, lng }
     //console.log(data);
     // const dataRows = data.rows[0];
     // const dataMarker = L.marker(L.latLng(dataRows.stop_lat, dataRows.stop_lon), { icon: customIcon })
@@ -110,9 +112,9 @@ async function addMarker(latlng) {
     const heatmap = L.geoJSON(geojson, {
       style: feature => ({
         fillColor: getColor(feature.properties.cost_band),
-        fillOpacity: 0.1,
-        color: '#fff',
-        weight: 1
+        fillOpacity: 0.15,
+        color: '#f200ff',
+        weight: 2
       })
     }).addTo(map);
     heatmaps.push(heatmap);
@@ -164,7 +166,7 @@ function updateMarkerList() {
       e.stopPropagation();
       const idx = +btn.dataset.index;
       map.removeLayer(markers[idx]);
-      map.removeLayer(heatmaps[idx]);
+      if(heatmaps[idx]!== null)map.removeLayer(heatmaps[idx]);
       markers.splice(idx, 1);
       heatmaps.splice(idx,1);
       updateMarkerList();
@@ -241,6 +243,8 @@ map.on('locationerror', () => setStatus('Location unavailable'));
 document.getElementById('btn-clear-markers').addEventListener('click', () => {
   markers.forEach(m => map.removeLayer(m));
   markers.length = 0;
+  heatmaps.forEach(h => {if(h !== null){map.removeLayer(h);}});
+  heatmaps.length = 0;
   updateMarkerList();
   updateInfo();
   setStatus('All markers cleared');
@@ -252,6 +256,49 @@ document.getElementById('btn-fit').addEventListener('click', () => {
   map.fitBounds(group.getBounds().pad(0.15));
   setStatus('Fitted to markers');
 });
+// Time dial
+function pad(n) { return String(n).padStart(2, '0'); }
+
+function closeAllDials() {
+  document.querySelectorAll('.dial-trigger').forEach(t => t.classList.remove('open'));
+  document.querySelectorAll('.dial-dropdown').forEach(d => d.classList.remove('open'));
+}
+
+function buildDial(triggerId, dropId, valId, max) {
+  const trigger = document.getElementById(triggerId);
+  const drop    = document.getElementById(dropId);
+  const valEl   = document.getElementById(valId);
+
+  for (let i = 0; i <= max; i++) {
+    const opt = document.createElement('div');
+    opt.className = 'dial-option';
+    opt.textContent = pad(i);
+    if (opt.textContent === valEl.textContent) opt.classList.add('selected');
+    opt.addEventListener('click', () => {
+      valEl.textContent = opt.textContent;
+      drop.querySelectorAll('.dial-option').forEach(o => o.classList.toggle('selected', o === opt));
+      closeAllDials();
+    });
+    drop.appendChild(opt);
+  }
+
+  trigger.addEventListener('click', e => {
+    e.stopPropagation();
+    const isOpen = trigger.classList.contains('open');
+    closeAllDials();
+    if (!isOpen) {
+      trigger.classList.add('open');
+      drop.classList.add('open');
+      drop.querySelector('.selected')?.scrollIntoView({ block: 'nearest' });
+    }
+  });
+}
+
+buildDial('trigger-hours',   'drop-hours',   'val-hours',   26);
+buildDial('trigger-minutes', 'drop-minutes', 'val-minutes', 59);
+buildDial('trigger-duration', 'drop-duration', 'val-duration', 60);
+
+document.addEventListener('click', closeAllDials);
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 updateInfo();

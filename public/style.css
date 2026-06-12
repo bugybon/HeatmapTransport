@@ -333,3 +333,76 @@ footer {
   background: var(--accent);
   box-shadow: 0 0 6px var(--accent);
 }
+
+/* ── Time dial ── */
+.time-dial-wrapper { display: flex; gap: 8px; align-items: flex-start; }
+
+.dial { position: relative; display: inline-flex; flex-direction: column; gap: 4px; }
+
+.dial-label {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.dial-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: 'DM Mono', monospace;
+  font-size: 1.1rem;
+  padding: 8px 14px;
+  cursor: pointer;
+  min-width: 80px;
+  justify-content: space-between;
+  transition: border-color 0.18s, color 0.18s;
+  user-select: none;
+}
+
+.dial-trigger:hover,
+.dial-trigger.open { border-color: var(--accent); color: var(--accent); }
+
+.dial-trigger .chevron { font-size: 13px; transition: transform 0.18s; color: var(--muted); }
+.dial-trigger.open .chevron { transform: rotate(180deg); color: var(--accent); }
+
+.dial-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow-y: auto;
+  max-height: 200px;
+  min-width: 100%;
+  z-index: 100;
+}
+
+.dial-dropdown.open { display: block; }
+
+.dial-option {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.9rem;
+  padding: 7px 14px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.dial-option:hover { background: var(--bg); color: var(--text); }
+.dial-option.selected { color: var(--accent); background: var(--bg); }
+
+.dial-sep {
+  font-family: 'DM Mono', monospace;
+  font-size: 1.4rem;
+  color: var(--border);
+  padding-top: 26px;
+  line-height: 1;
+}

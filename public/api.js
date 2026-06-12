@@ -10,12 +10,12 @@ async function request(path) {
 
 const GeoApi = {
   // pass a Leaflet latlng object directly: map.on('click', e => GeoApi.fromPoint(e.latlng))
-  fromPoint: ({ lat, lng }) =>
+  fromPoint: ({ lat, lng}, time, starttime ) =>
     request(`/geo?lat=${lat}&lng=${lng}`),
-  byFoot:({lat,lng}) =>
-    request(`/byfoot?lat=${lat}&lng=${lng}&time=${20.0}`),
-  withTransport:({lat,lng})=>
-    request(`/withtransport?lat=${lat}&lng=${lng}&time=${20.0}&starttime=${"08:00:00"}`),
-  withTransportWorkers:({lat,lng})=>
-    request(`/withtransportworkers?lat=${lat}&lng=${lng}&time=${20.0}&starttime=${"08:00:00"}`)
+  byFoot:({lat,lng},time,starttime) =>
+    request(`/byfoot?lat=${lat}&lng=${lng}&time=${time}`),
+  withTransport:({lat,lng},time,starttime)=>
+    request(`/withtransport?lat=${lat}&lng=${lng}&time=${time}&starttime=${starttime}`),
+  withTransportWorkers:({lat,lng},time,starttime)=>
+    request(`/withtransportworkers?lat=${lat}&lng=${lng}&time=${time}&starttime=${starttime}`)
 };
