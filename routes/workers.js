@@ -1,5 +1,5 @@
 const { parentPort, workerData } = require('node:worker_threads');
-const pool = require('../db/pool');
+const pool = require('../db/poolworkers');
 
 const { stopId, pedVertexId, accumulatedCost, depth, startTime, maxWalkCost } = workerData ?? {};
 
@@ -86,9 +86,10 @@ async function run() {
     // nextStops:   stops to expand from in next depth level
 
     // get trips from all reachable stops
+    try{
     const tripArrays = await getTripsFromStop(stopId, accumulatedCost, depth);
     const trips = tripArrays.flat();
-    console.log("trips", trips);
+    //console.log("trips", trips);
 
     // ride each trip
     const rideArrays = await Promise.all(
@@ -96,7 +97,7 @@ async function run() {
             .map(t => rideToStop(t.node, t.tripId, t.accumulatedCost, depth + 1))
     );
     const currentStops = rideArrays.flat();
-    console.log("currentStops", currentStops)
+    //console.log("currentStops", currentStops)
     const walkRows = await Promise.all(
         currentStops.map(t => walkToStops(t.pedVertex, t.accumulatedCost, depth + 2))
     )
@@ -105,7 +106,7 @@ async function run() {
             node: row.node,
             totalCost: row.accumulatedCost
         }));
-    console.log("walkRows", walkRows);
+    //console.log("walkRows", walkRows);
 
     //console.log("walkRows:", walkRows);
     const nextStops = walkRows.flat()
@@ -118,6 +119,12 @@ async function run() {
         }));
 
     parentPort.postMessage({ walkResults, nextStops });
+    } catch(err){
+        console.error('worker error:', err);
+        // reject the worker promise by throwing
+        // spawnWorker's error handler will catch this
+        throw err;
+    }
 }
 
 run()

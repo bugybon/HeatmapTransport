@@ -136,8 +136,8 @@ async function recursiveDrivingDistance(startNode, startTime, maxWalkCost, maxDe
         return rows
             .filter(row => row.stop_id !== null)
             .map(row => ({
-                stopId:          row.stop_id,
-                pedVertex:       row.node,
+                stopId: row.stop_id,
+                pedVertex: row.node,
                 accumulatedCost: accumulatedCost + parseFloat(row.agg_cost),
                 depth
             }));
@@ -155,7 +155,7 @@ async function recursiveDrivingDistance(startNode, startTime, maxWalkCost, maxDe
             visited.add(stopId);
 
             // get available trips from this stop
-            const trips = await getTripsFromStop(stopId, startTime, accumulatedCost,maxWalkCost, depth);
+            const trips = await getTripsFromStop(stopId, startTime, accumulatedCost, maxWalkCost, depth);
             //console.log("trips:" + trips.length);
             for (const trip of trips) {
                 // ride to reachable stops on this trip
@@ -245,7 +245,6 @@ async function heatmapWithTransport(lat, lng, time, starttime) {
 }
 
 function spawnWorker(data) {
-    console.log('spawning worker with data:', data);  // add this
     return new Promise((resolve, reject) => {
         const worker = new Worker(path.resolve(__dirname, './workers.js'), {
             workerData: {
@@ -264,10 +263,52 @@ function spawnWorker(data) {
     });
 }
 
+async function runWithConcurrencyLimit(tasks, limit) {
+    const results = [];
+    const executing = new Set();
+    let aborted = false;
+    let abortError = null;
+
+    for (const task of tasks) {
+        if (aborted) break;  // stop spawning new workers
+
+        const p = Promise.resolve().then(() => {
+            if (aborted) return null;
+            return task();
+        });
+
+        const tracked = p.then(result => {
+            executing.delete(tracked);
+            return result;
+        }).catch(err => {
+            executing.delete(tracked);
+            aborted = true;       // signal all future tasks to stop
+            abortError = err;
+            return null;          // don't rethrow here, handle below
+        });
+
+        executing.add(tracked);
+        results.push(tracked);
+
+        if (executing.size >= limit) {
+            await Promise.race(executing);
+            if (aborted) break;   // stop waiting if error occurred
+        }
+    }
+
+    await Promise.all(executing);  // wait for in-flight workers to finish
+
+    if (aborted) throw abortError; // rethrow the original error
+
+    return Promise.all(results);
+}
+
 async function recursiveDrivingDistanceWorkers(startNode, startTime, maxWalkCost, maxDepth = 5) {
-    const visited     = new Set();   // visited transit stops
+    const visited = new Set();   // visited transit stops
     const walkVisited = new Set();   // visited ped vertices
-    const results     = new Map();   // ped_vertex -> { node, totalCost }
+    const results = new Map();   // ped_vertex -> { node, totalCost }
+    let aborted = false;
+
 
     // initial walk from start node — run directly, not in worker
     const { rows: initRows } = await pool.query(`
@@ -295,12 +336,12 @@ async function recursiveDrivingDistanceWorkers(startNode, startTime, maxWalkCost
         if (row.stop_id && !visited.has(row.stop_id)) {
             //visited.add(row.stop_id);
             stopQueue.push({
-                stopId:          row.stop_id,
-                pedVertexId:     row.node,
+                stopId: row.stop_id,
+                pedVertexId: row.node,
                 accumulatedCost: totalCost,
                 startTime,
                 maxWalkCost,
-                depth:           1
+                depth: 1
             });
         }
     }
@@ -314,35 +355,45 @@ async function recursiveDrivingDistanceWorkers(startNode, startTime, maxWalkCost
             visited.add(s.stopId);
             return true;
         });
-        // all stops at this depth level run in parallel
-        const workerResults = await Promise.all(
-            toProcess.map(stop => spawnWorker(stop))
-        );
 
+        console.log(`spawning ${toProcess.length} workers at depth ${stopQueue[0]?.depth}`);
         const nextStopQueue = [];
 
-        for (const { walkResults, nextStops } of workerResults) {
-            // merge walk results into main map
-            for (const r of walkResults) {
-                if (!results.has(r.node) || results.get(r.node).totalCost > r.totalCost) {
-                    results.set(r.node, { node: r.node, totalCost: r.totalCost });
+        // all stops at this depth level run in parallel
+        try {
+            const workerResults = await runWithConcurrencyLimit(
+                toProcess.map(stop => () => spawnWorker(stop)),
+                32  // max 4 workers at a time
+            );
+
+
+            for (const { walkResults, nextStops } of workerResults) {
+                // merge walk results into main map
+                for (const r of walkResults) {
+                    if (!results.has(r.node) || results.get(r.node).totalCost > r.totalCost) {
+                        results.set(r.node, { node: r.node, totalCost: r.totalCost });
+                    }
+                }
+                console.log("baseNextStops:", nextStops);
+                // queue next stops, skip already visited
+                for (const stop of nextStops) {
+                    if (!stop.pedVertex) continue;
+                    if (visited.has(stop.stopId)) continue;
+
+                    nextStopQueue.push({
+                        stopId: stop.stopId,
+                        pedVertexId: stop.pedVertex,
+                        accumulatedCost: stop.accumulatedCost,
+                        startTime,
+                        maxWalkCost,
+                        depth: stop.depth
+                    });
                 }
             }
-            console.log("baseNextStops:", nextStops);
-            // queue next stops, skip already visited
-            for (const stop of nextStops) {
-                if (!stop.pedVertex) continue;
-                if (visited.has(stop.stopId)) continue;
-
-                nextStopQueue.push({
-                    stopId:          stop.stopId,
-                    pedVertexId:     stop.pedVertex,
-                    accumulatedCost: stop.accumulatedCost,
-                    startTime,
-                    maxWalkCost,
-                    depth:           stop.depth
-                });
-            }
+        } catch (err) {
+            console.error('aborting recursive driving distance:', err);
+            aborted = true;  // ← stop the while loop
+            break;
         }
 
         stopQueue = nextStopQueue;

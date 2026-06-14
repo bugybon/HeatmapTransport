@@ -1,13 +1,19 @@
 const router = require('express').Router();
 const pool = require('../db/pool');
 
-router.use(async (req, res, next) => {
-    const originalJson = res.json.bind(res);
+router.use('/geo', require('./geo'));
+router.use('/byfoot', require('./byfoot'))
+router.use('/withtransport', require('./withtransport'))
+router.use('/withtransportworkers', require('./withtransportworkers'))
 
-    res.json = async (body) => {
-        const nodes = body.rows.map(r => r.node);
+router.use(async (req, res, next) => {
+    try {
+        const isoData = req.isoData;
+        const originalJson = res.json.bind(res);
+
+        const nodes = isoData.rows.map(r => r.node);
         const costMap = Object.fromEntries(
-            body.rows.map(r => [r.node, r.agg_cost])
+            isoData.rows.map(r => [r.node, r.agg_cost])
         );
 
         // const result = await pool.query(`
@@ -120,14 +126,11 @@ router.use(async (req, res, next) => {
             nodes,                          // $1 — array of node ids
             nodes.map(n => costMap[n])      // $2 — matching array of costs
         ]);
-        return originalJson(result);
-    };
-    next();
+        res.json(result);
+    } catch (err) {
+        next(err);
+    }
 });
 
-router.use('/geo', require('./geo'));
-router.use('/byfoot', require('./byfoot'))
-router.use('/withtransport', require('./withtransport'))
-router.use('/withtransportworkers', require('./withtransportworkers'))
 
 module.exports = router;

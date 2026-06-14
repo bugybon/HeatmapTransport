@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const pool = require('../db/pool')
 
-router.get('/', async (req, res) => {
+router.get('/', async (req, res, next) => {
     const { lat, lng } = req.query;
 
     if (!lat || !lng) {
@@ -15,7 +15,8 @@ router.get('/', async (req, res) => {
         ORDER BY wkb_geometry <-> ST_SetSRID(ST_MakePoint($1, $2), 4326) ASC
         LIMIT 1;`,
         [lng, lat]);
-    res.json(result);
+    req.isoData = result;
+    next()
 });
 
 module.exports = router;
