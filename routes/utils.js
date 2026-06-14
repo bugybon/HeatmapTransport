@@ -263,6 +263,63 @@ function spawnWorker(data) {
     });
 }
 
+function spawnTripWorker(data) {
+    return new Promise((resolve, reject) => {
+        const worker = new Worker(path.resolve(__dirname, 'workerride.js'), {
+            workerData: { ...data }
+        });
+        worker.on('message', resolve);
+        worker.on('error', reject);
+        worker.on('exit', code => {
+            if (code !== 0) reject(new Error(`trip worker exited with code ${code}`));
+        });
+    });
+}
+
+function spawnWalkWorker(data) {
+    return new Promise((resolve, reject) => {
+        const worker = new Worker(path.resolve(__dirname, 'workerwalk.js'), {
+            workerData: { ...data }
+        });
+        worker.on('message', resolve);
+        worker.on('error', reject);
+        worker.on('exit', code => {
+            if (code !== 0) reject(new Error(`walk worker exited with code ${code}`));
+        });
+    });
+}
+
+const BATCH_SIZE = 32;
+
+async function processInBatches(stops, workerFn, concurrency, onResult) {
+    const results = [];
+
+    for (let i = 0; i < stops.length; i += BATCH_SIZE) {
+        const batch = stops.slice(i, i + BATCH_SIZE);
+
+        try {
+            const batchResults = await runWithConcurrencyLimit(
+                batch.map(stop => () => workerFn(stop)),
+                concurrency
+            );
+
+            // process each result immediately instead of collecting
+            for (const result of batchResults) {
+                onResult(result);  // handle result inline
+            }
+            batchResults.length = 0;
+        } catch (err) {
+            batch.length = 0;
+            throw err;  // propagate up to the while loop catch
+        }
+
+        batch.length = 0;
+    }
+
+    return results;
+}
+
+
 async function runWithConcurrencyLimit(tasks, limit) {
     const results = [];
     const executing = new Set();
@@ -303,6 +360,8 @@ async function runWithConcurrencyLimit(tasks, limit) {
     return Promise.all(results);
 }
 
+const INITIAL_WALK_BUDGET = 20;
+
 async function recursiveDrivingDistanceWorkers(startNode, startTime, maxWalkCost, maxDepth = 5) {
     const visited = new Set();   // visited transit stops
     const walkVisited = new Set();   // visited ped vertices
@@ -324,7 +383,7 @@ async function recursiveDrivingDistanceWorkers(startNode, startTime, maxWalkCost
         ) dd
         LEFT JOIN spt_stops s ON s.id_ped_vertex = dd.node
         WHERE dd.edge != -1
-    `, [startNode, maxWalkCost]);
+    `, [startNode, Math.min(maxWalkCost, INITIAL_WALK_BUDGET)]);
 
     // seed results and first stop queue
     let stopQueue = [];
@@ -356,30 +415,44 @@ async function recursiveDrivingDistanceWorkers(startNode, startTime, maxWalkCost
             return true;
         });
 
-        console.log(`spawning ${toProcess.length} workers at depth ${stopQueue[0]?.depth}`);
         const nextStopQueue = [];
 
         // all stops at this depth level run in parallel
         try {
-            const workerResults = await runWithConcurrencyLimit(
-                toProcess.map(stop => () => spawnWorker(stop)),
-                32  // max 4 workers at a time
-            );
+            const nextStopsMap = new Map();
 
+            console.log(`spawning ${toProcess.length} ride workers at depth ${stopQueue[0]?.depth}`);
 
-            for (const { walkResults, nextStops } of workerResults) {
-                // merge walk results into main map
-                for (const r of walkResults) {
+            await processInBatches(toProcess, spawnTripWorker, 8, (result) => {
+                console.log('trip onResult nextStops:', result?.nextStops?.length);
+                if (!Array.isArray(result)) return;
+
+                for (const stop of result) {
+                    if (!stop.pedVertex) continue;
+                    if (walkVisited.has(stop.pedVertex)) continue;
+
+                    const existing = nextStopsMap.get(stop.pedVertex);
+                    if (!existing || stop.accumulatedCost < existing.accumulatedCost) {
+                        nextStopsMap.set(stop.pedVertex, stop);
+                    }
+                }
+
+                console.log('nextStopsMap size:', nextStopsMap.size);
+            });
+
+            console.log(`spawning ${nextStopsMap.size} walk workers from map`);
+            // phase 2 — walk from each arrived stop
+            await processInBatches([...nextStopsMap.values()], spawnWalkWorker, 4, (result) => {
+                console.log('onResult called with:', result);
+                if (!result?.walkResults) return;
+                for (const r of result.walkResults) {
                     if (!results.has(r.node) || results.get(r.node).totalCost > r.totalCost) {
                         results.set(r.node, { node: r.node, totalCost: r.totalCost });
                     }
                 }
-                console.log("baseNextStops:", nextStops);
-                // queue next stops, skip already visited
-                for (const stop of nextStops) {
+                for (const stop of result.nextStops ?? []) {
                     if (!stop.pedVertex) continue;
                     if (visited.has(stop.stopId)) continue;
-
                     nextStopQueue.push({
                         stopId: stop.stopId,
                         pedVertexId: stop.pedVertex,
@@ -389,13 +462,16 @@ async function recursiveDrivingDistanceWorkers(startNode, startTime, maxWalkCost
                         depth: stop.depth
                     });
                 }
-            }
+            });
+            //console.log(walks);
+            //console.log('walks[0]:', JSON.stringify(walks[0], null, 2));
+            nextStopsMap.clear();
         } catch (err) {
             console.error('aborting recursive driving distance:', err);
             aborted = true;  // ← stop the while loop
             break;
         }
-
+        console.log(nextStopQueue)
         stopQueue = nextStopQueue;
     }
 
