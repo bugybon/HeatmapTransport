@@ -40,13 +40,24 @@ let tileLayer = makeTileLayer('dark').addTo(map);
 
 function getColor(cost_band) {
     const colors = {
-        '0-10':  '#FFEDA0',
-        '10-20': '#FEB24C',
-        '20-30': '#FD8D3C',
-        '30-45': '#FC4E2A',
-        '45-60': '#E31A1C'
+        '0-10':  '#00ff00',
+        '10-20': '#00af00',
+        '20-30': '#008500',
+        '30-45': '#004d00',
+        '45-60': '#000546'
     };
     return colors[cost_band] ?? '#800026';
+}
+
+function getOpacity(cost_band) {
+    const opacity = {
+        '0-10':  0.05,
+        '10-20': 0.10,
+        '20-30': 0.15,
+        '30-45': 0.20,
+        '45-60': 0.25
+    };
+    return opacity[cost_band] ?? 1.0;
 }
 
 // ── Markers ──────────────────────────────────────────────────────────────────
@@ -112,7 +123,7 @@ async function addMarker(latlng) {
     const heatmap = L.geoJSON(geojson, {
       style: feature => ({
         fillColor: getColor(feature.properties.cost_band),
-        fillOpacity: 0.15,
+        fillOpacity: getOpacity(feature.properties.cost_band),
         color: '#f200ff',
         weight: 2
       })

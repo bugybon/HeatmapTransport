@@ -473,6 +473,7 @@ async function recursiveDrivingDistanceWorkers(startNode, startTime, maxWalkCost
         }
         console.log(nextStopQueue)
         stopQueue = nextStopQueue;
+        nextStopQueue.length = 0;
     }
 
     console.log({ rows: [...results.values()] });
