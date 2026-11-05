@@ -68,6 +68,7 @@ router.use(async (req, res, next) => {
         //     nodes.map(n => costMap[n])
         // ]);
         const result = await pool.query(`
+            --first version
             -- SELECT json_build_object(
             --     'type',     'FeatureCollection',
             --     'features', json_agg(ST_AsGeoJSON(t.*)::json)
@@ -95,32 +96,72 @@ router.use(async (req, res, next) => {
             --     ) t
             --     GROUP BY cost_band
             -- ) t
+            --
+            -- second version
+            -- SELECT json_build_object(
+            --    'type',     'FeatureCollection',
+            --    'features', json_agg(ST_AsGeoJSON(t.*)::json)
+            -- ) AS featurecollection
+            -- FROM (
+            --     SELECT
+            --         cost_band,
+            --         ST_Transform(
+            --             ST_ConcaveHull(ST_Collect(the_geom), 0.2, true),
+            --             4326
+            --         ) AS geometry
+            --     FROM (
+            --         SELECT
+            --             pev.the_geom,
+            --             b.cost_band
+            --         FROM UNNEST($1::int[], $2::float[]) AS t(node_id, unnest_cost)
+            --         JOIN ped_edges_vertices_pgr pev ON t.node_id = pev.id
+            --         JOIN (VALUES
+            --             (10, '0-10'),
+            --             (20, '10-20'),
+            --             (30, '20-30'),
+            --             (45, '30-45'),
+            --             (60, '45-60')
+            --         ) AS b(max_cost, cost_band) ON unnest_cost <= b.max_cost  -- point included in all bands it falls under
+            --     ) t
+            --     GROUP BY cost_band
+            -- ) t
+            --
+            -- third
+            WITH pts AS (
+                -- each point appears in every band whose max cost it fits under
+                SELECT pev.the_geom, b.cost_band, b.max_cost
+                FROM UNNEST($1::int[], $2::float[]) AS t(node_id, cost)
+                JOIN ped_edges_vertices_pgr pev ON pev.id = t.node_id
+                JOIN (VALUES
+                    (10, '0-10'),
+                    (20, '10-20'),
+                    (30, '20-30'),
+                    (45, '30-45'),
+                    (60, '45-60')
+                ) AS b(max_cost, cost_band) ON t.cost <= b.max_cost
+            ),
+            hulls AS (
+                SELECT cost_band, max_cost,
+                    ST_ConcaveHull(ST_Collect(the_geom), 0.5, true) AS hull
+                FROM pts
+                GROUP BY cost_band, max_cost
+            ),
+            rings AS (
+                -- hole of band i+1 = hull of band i
+                SELECT cost_band,
+                    COALESCE(
+                        ST_Difference(hull, LAG(hull) OVER (ORDER BY max_cost)),
+                        hull                      -- innermost band has no hole
+                    ) AS geom
+                FROM hulls
+            )
             SELECT json_build_object(
                 'type',     'FeatureCollection',
                 'features', json_agg(ST_AsGeoJSON(t.*)::json)
             ) AS featurecollection
             FROM (
-                SELECT
-                    cost_band,
-                    ST_Transform(
-                        ST_ConcaveHull(ST_Collect(the_geom), 0.2, true),
-                        4326
-                    ) AS geometry
-                FROM (
-                    SELECT
-                        pev.the_geom,
-                        b.cost_band
-                    FROM UNNEST($1::int[], $2::float[]) AS t(node_id, unnest_cost)
-                    JOIN ped_edges_vertices_pgr pev ON t.node_id = pev.id
-                    JOIN (VALUES
-                        (10, '0-10'),
-                        (20, '10-20'),
-                        (30, '20-30'),
-                        (45, '30-45'),
-                        (60, '45-60')
-                    ) AS b(max_cost, cost_band) ON unnest_cost <= b.max_cost  -- point included in all bands it falls under
-                ) t
-                GROUP BY cost_band
+                SELECT cost_band, ST_Transform(geom, 4326) AS geometry
+                FROM rings
             ) t
      `, [
             nodes,                          // $1 — array of node ids
