@@ -74,6 +74,8 @@ async function run() {
     } catch (err) {
         console.error('trip worker error:', err);
         parentPort.postMessage([]);
+    } finally {
+        await pool.end();
     }
 }
 

@@ -121,6 +121,7 @@ buildBandControls();
 // ── Markers ──────────────────────────────────────────────────────────────────
 const markers = [];
 let heatmaps = [];
+const hiddeness = []
 
 const customIcon = L.divIcon({
   className: '',
@@ -143,6 +144,7 @@ async function addMarker(latlng) {
     .bindPopup(`<b>${latlng.lat.toFixed(5)}</b><br>${latlng.lng.toFixed(5)}`);
 
   markers.push(marker);
+  hiddeness.push(false);
   updateMarkerList();
   updateInfo();
   setStatus(`Marker placed at ${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}`);
@@ -217,9 +219,12 @@ function updateMarkerList() {
     //   <button class="marker-interactable" data-index="${i}" title="Remove">✕</button>
     // `;
     el.innerHTML = `
-      <span>Heatmap ${i}</span>
-      <button class="marker-interactable marker-invisible" data-index="${i}" title="Invisible">☼</button>
-      <button class="marker-interactable marker-remove" data-index="${i}" title="Remove">✕</button>
+      <span>Heatmap ${i}</span>\n` +
+      (!hiddeness[i] ?
+        `<button class="marker-interactable marker-invisible" data-index="${i}" title="Invisible">☼</button>\n` :
+        `<button class="marker-interactable marker-invisible hidden" data-index="${i}" title="Invisible">☾︎</button>\n`
+      ) +
+      `<button class="marker-interactable marker-remove" data-index="${i}" title="Remove">✕</button>
     `;
     el.addEventListener('click', e => {
       if (!e.target.classList.contains('marker-interactable')) {
@@ -238,6 +243,7 @@ function updateMarkerList() {
       if(heatmaps[idx]!== null)map.removeLayer(heatmaps[idx]);
       markers.splice(idx, 1);
       heatmaps.splice(idx,1);
+      hiddeness.splice(idx,1);
       updateMarkerList();
       updateInfo();
       setStatus('Marker removed');
@@ -249,15 +255,17 @@ function updateMarkerList() {
       e.stopPropagation();
       const idx = +btn.dataset.index;
 
-      if (!e.target.classList.contains('hidden')) {
+      if (!hiddeness[idx]) {
         map.removeLayer(markers[idx]);
         if(heatmaps[idx]!== null)map.removeLayer(heatmaps[idx]);
         e.target.classList.add('hidden');
+        hiddeness[idx] = true;
         e.target.innerHTML = '☾︎';
       } else {
         map.addLayer(markers[idx]);
         if(heatmaps[idx]!== null)map.addLayer(heatmaps[idx]);
         e.target.classList.remove('hidden');
+        hiddeness[idx] = false;
         e.target.innerHTML = '☼';
       }
 

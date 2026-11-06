@@ -424,7 +424,7 @@ async function recursiveDrivingDistanceWorkers(startNode, startTime, maxWalkCost
             console.log(`spawning ${toProcess.length} ride workers at depth ${stopQueue[0]?.depth}`);
 
             await processInBatches(toProcess, spawnTripWorker, 8, (result) => {
-                console.log('trip onResult nextStops:', result?.nextStops?.length);
+                //console.log('trip onResult nextStops:', result?.nextStops?.length);
                 if (!Array.isArray(result)) return;
 
                 for (const stop of result) {
@@ -443,7 +443,7 @@ async function recursiveDrivingDistanceWorkers(startNode, startTime, maxWalkCost
             console.log(`spawning ${nextStopsMap.size} walk workers from map`);
             // phase 2 — walk from each arrived stop
             await processInBatches([...nextStopsMap.values()], spawnWalkWorker, 4, (result) => {
-                console.log('onResult called with:', result);
+                //console.log('onResult called with:', result);
                 if (!result?.walkResults) return;
                 for (const r of result.walkResults) {
                     if (!results.has(r.node) || results.get(r.node).totalCost > r.totalCost) {

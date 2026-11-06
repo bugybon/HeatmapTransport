@@ -58,6 +58,8 @@ async function run() {
     } catch (err) {
         console.error('walk worker error:', err);
         parentPort.postMessage({ walkResults: [], nextStops: [] });
+    } finally {
+        await pool.end();
     }
 }
 

@@ -6,10 +6,10 @@ const pool = new Pool({
     user:                    process.env.PGUSER,
     password:                process.env.PGPASS,
     port:                    process.env.PGPORT,
-    ssl:                     { rejectUnauthorized: false },
+    ssl:                     "",//{ rejectUnauthorized: false },
     max:                     5,
-    idleTimeoutMillis:       0,
-    connectionTimeoutMillis: 0
+    idleTimeoutMillis:       30000,
+    connectionTimeoutMillis: 5000
 });
 
 pool.on('error', (err) => console.error('pg pool error', err));

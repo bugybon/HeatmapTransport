@@ -124,6 +124,8 @@ async function run() {
         // reject the worker promise by throwing
         // spawnWorker's error handler will catch this
         throw err;
+    } finally{
+        await pool.end();
     }
 }
 
