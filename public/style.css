@@ -163,6 +163,99 @@ header {
 
 .ctrl-btn:hover { border-color: var(--accent2); color: var(--accent2); }
 
+
+/* Heatmap styling */
+.band-row {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.15s;
+}
+
+.band-row:hover { border-color: var(--accent); }
+
+.band-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.band-name {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.band-value {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--text);
+  min-width: 34px;
+  text-align: right;
+}
+
+.band-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* wide color swatch */
+.band-row input[type="color"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 56px;
+  height: 22px;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.18s;
+}
+
+.band-row input[type="color"]:hover { border-color: var(--accent); }
+.band-row input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+.band-row input[type="color"]::-webkit-color-swatch { border: none; border-radius: 3px; }
+.band-row input[type="color"]::-moz-color-swatch { border: none; border-radius: 3px; }
+
+/* opacity slider */
+.band-row input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.band-row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+  border: none;
+}
+
+.band-row input[type="range"]::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+  border: none;
+}
+
 /* Info panel */
 .info-block {
   background: var(--bg);

@@ -38,31 +38,89 @@ function makeTileLayer(key) {
 let currentTileKey = 'dark';
 let tileLayer = makeTileLayer('dark').addTo(map);
 
+// band style state
+const bandStyles = {
+  '0-10':  { color: '#00ff00', opacity: 0.05 },
+  '10-20': { color: '#00af00', opacity: 0.10 },
+  '20-30': { color: '#008500', opacity: 0.15 },
+  '30-45': { color: '#004d00', opacity: 0.20 },
+  '45-60': { color: '#000546', opacity: 0.25 }
+};
+
 function getColor(cost_band) {
-    const colors = {
-        '0-10':  '#00ff00',
-        '10-20': '#00af00',
-        '20-30': '#008500',
-        '30-45': '#004d00',
-        '45-60': '#000546'
-    };
-    return colors[cost_band] ?? '#800026';
+  return bandStyles[cost_band]?.color ?? '#800026';
 }
 
 function getOpacity(cost_band) {
-    const opacity = {
-        '0-10':  0.05,
-        '10-20': 0.10,
-        '20-30': 0.15,
-        '30-45': 0.20,
-        '45-60': 0.25
-    };
-    return opacity[cost_band] ?? 1.0;
+  return bandStyles[cost_band]?.opacity ?? 1.0;
 }
+
+// ---- re-style the existing layer without re-querying ----
+// requires: let heatmap = L.geoJSON(...).addTo(map);   (const -> let)
+function refreshHeatmapStyle() {
+  if (heatmaps.length == 0) return;
+
+  heatmaps.forEach((heatmap) => {heatmap.setStyle(feature => ({
+    fillColor:   getColor(feature.properties.cost_band),
+    fillOpacity: getOpacity(feature.properties.cost_band)
+  }))});
+}
+
+// ---- build the sidebar controls ----
+function buildBandControls(container = document.getElementById('band-controls')) {
+    container.innerHTML = '';
+
+    for (const [band, style] of Object.entries(bandStyles)) {
+        const row = document.createElement('div');
+        row.className = 'band-row';
+
+        const head = document.createElement('div');
+        head.className = 'band-head';
+
+        const name = document.createElement('span');
+        name.className = 'band-name';
+        name.textContent = `${band} min`;
+
+        const right = document.createElement('div');
+        right.className = 'band-controls-right';
+
+        const color = document.createElement('input');
+        color.type = 'color';
+        color.value = style.color;
+        color.addEventListener('input', () => {
+            bandStyles[band].color = color.value;
+            refreshHeatmapStyle();
+        });
+
+        const value = document.createElement('span');
+        value.className = 'band-value';
+        value.textContent = style.opacity.toFixed(2);
+
+        right.append(color, value);
+        head.append(name, right);
+
+        const opacity = document.createElement('input');
+        opacity.type = 'range';
+        opacity.min = 0;
+        opacity.max = 1;
+        opacity.step = 0.01;
+        opacity.value = style.opacity;
+        opacity.addEventListener('input', () => {
+            bandStyles[band].opacity = parseFloat(opacity.value);
+            value.textContent = bandStyles[band].opacity.toFixed(2);
+            refreshHeatmapStyle();
+        });
+
+        row.append(head, opacity);
+        container.appendChild(row);
+    }
+}
+
+buildBandControls();
 
 // ── Markers ──────────────────────────────────────────────────────────────────
 const markers = [];
-const heatmaps = [];
+let heatmaps = [];
 
 const customIcon = L.divIcon({
   className: '',
