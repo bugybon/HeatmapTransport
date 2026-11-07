@@ -1,9 +1,9 @@
 const { parentPort, workerData } = require('node:worker_threads');
 const pool = require('../db/poolworkers');
 
-const { stopId, pedVertexId, accumulatedCost, depth, startTime, maxWalkCost } = workerData ?? {};
+const { stopId, pedVertexId, accumulatedCost, depth, startTime, maxWalkCost, date } = workerData ?? {};
 
-async function getTripsFromStop(stopId, accumulated, depth) {
+async function getTripsFromStop(stopId, accumulated, date, depth) {
     const { rows } = await pool.query(`
         SELECT DISTINCT
             sst.trip_id,
@@ -13,11 +13,17 @@ async function getTripsFromStop(stopId, accumulated, depth) {
             )) / 60.0 AS wait_minutes
         FROM spt_stop_times sst
         JOIN spt_stops ss ON ss.stop_id = sst.stop_id
+        JOIN spt_trips t  ON t.trip_id  = sst.trip_id
         WHERE ss.ogc_fid = $1::int
             AND sst.arrival_time > ($2::interval + ($3::float || ' minutes')::interval)
             AND sst.arrival_time < ($2::interval + ($4::float || ' minutes')::interval)
+            AND ($5::text IS NULL OR EXISTS (
+                SELECT 1 FROM spt_calendar sc
+                WHERE sc.service_id = t.service_id
+                    AND sc.date::text = $5::text
+            ))
         ORDER BY sst.arrival_time
-    `, [stopId, startTime, accumulated, maxWalkCost]);
+    `, [stopId, startTime, accumulated, maxWalkCost,date]);
 
     return rows.map(row => ({
         node: stopId,
@@ -56,8 +62,9 @@ async function rideToStop(stopId, tripId, accumulated, depth) {
 }
 
 async function run() {
+    console.log("ride worker:",date);
     try {
-        const trips = await getTripsFromStop(stopId, accumulatedCost, depth);
+        const trips = await getTripsFromStop(stopId, accumulatedCost, date, depth);
         if (trips.length === 0) {
             parentPort.postMessage([]);
             return;

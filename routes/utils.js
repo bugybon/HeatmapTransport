@@ -2,6 +2,13 @@ const pool = require('../db/pool');
 const { Worker } = require('node:worker_threads');
 const path = require('node:path');
 
+// verify both dates with the sample-week query first
+const SCHEDULE_DATES = {
+    mix:  null,          // no date filter: every trip, as before
+    work: '20261117',    // a Tuesday inside the dense region
+    vac:  '20261115'     // a Sunday inside the dense region
+};
+
 async function heatmapByFoot(lat, lng, time) {
     const ongrid = await pool.query(
         `SELECT *
@@ -47,7 +54,7 @@ async function heatmapByFoot(lat, lng, time) {
 }
 
 // Step 2 — get available trips from a transit stop
-async function getTripsFromStop(stopId, startTime, accumulatedCost, maxWalkCost, depth) {
+async function getTripsFromStop(stopId, startTime, accumulatedCost, maxWalkCost, date, depth) {
     const { rows } = await pool.query(`
             SELECT DISTINCT
                 sst.trip_id,
@@ -57,11 +64,17 @@ async function getTripsFromStop(stopId, startTime, accumulatedCost, maxWalkCost,
                 )) / 60.0 AS wait_minutes
             FROM spt_stop_times sst
             join spt_stops ss on ss.stop_id = sst.stop_id
+            JOIN spt_trips t  ON t.trip_id  = sst.trip_id
             WHERE ss.ogc_fid = $1::int
               AND sst.arrival_time > ($2::interval + ($3::float || ' minutes')::interval)
               and sst.arrival_time < ($2::interval + ($4::float || ' minutes')::interval)
+              AND ($5::text IS NULL OR EXISTS (
+                SELECT 1 FROM spt_calendar sc
+                WHERE sc.service_id = t.service_id
+                AND sc.date::text = $5::text
+              ))
             ORDER BY sst.arrival_time
-        `, [stopId, startTime, accumulatedCost, maxWalkCost]);
+        `, [stopId, startTime, accumulatedCost, maxWalkCost,date]);
 
     return rows.map(row => ({
         node: stopId,
@@ -99,7 +112,7 @@ async function rideToStop(stopId, maxWalkCost, tripId, accumulatedCost, depth) {
     }));
 }
 
-async function recursiveDrivingDistance(startNode, startTime, maxWalkCost, maxDepth = 5) {
+async function recursiveDrivingDistance(startNode, startTime, maxWalkCost, date, maxDepth = 5) {
     const visited = new Set();  // visited transit stops (ogc_fid)
     const walkVisited = new Set();  // visited ped vertices
     const results = new Map();  // node_id -> { node, totalCost }
@@ -155,7 +168,7 @@ async function recursiveDrivingDistance(startNode, startTime, maxWalkCost, maxDe
             visited.add(stopId);
 
             // get available trips from this stop
-            const trips = await getTripsFromStop(stopId, startTime, accumulatedCost, maxWalkCost, depth);
+            const trips = await getTripsFromStop(stopId, startTime, accumulatedCost, maxWalkCost, date, depth);
             //console.log("trips:" + trips.length);
             for (const trip of trips) {
                 // ride to reachable stops on this trip
@@ -232,7 +245,7 @@ async function getNextDeparture(nodeId, startTime, currentCost) {
     }));
 }
 
-async function heatmapWithTransport(lat, lng, time, starttime) {
+async function heatmapWithTransport(lat, lng, time, starttime, date) {
     const ongrid = await pool.query(
         `SELECT *
         FROM ped_edges_vertices_pgr pe 
@@ -240,7 +253,7 @@ async function heatmapWithTransport(lat, lng, time, starttime) {
         LIMIT 1;`,
         [lng, lat]);
 
-    return recursiveDrivingDistance(ongrid.rows[0].id, starttime, time)
+    return recursiveDrivingDistance(ongrid.rows[0].id, starttime, time, date)
 
 }
 
@@ -362,7 +375,7 @@ async function runWithConcurrencyLimit(tasks, limit) {
 
 const INITIAL_WALK_BUDGET = 20;
 
-async function recursiveDrivingDistanceWorkers(startNode, startTime, maxWalkCost, maxDepth = 5) {
+async function recursiveDrivingDistanceWorkers(startNode, startTime, maxWalkCost, date, maxDepth = 5) {
     const visited = new Set();   // visited transit stops
     const walkVisited = new Set();   // visited ped vertices
     const results = new Map();   // ped_vertex -> { node, totalCost }
@@ -423,7 +436,7 @@ async function recursiveDrivingDistanceWorkers(startNode, startTime, maxWalkCost
 
             console.log(`spawning ${toProcess.length} ride workers at depth ${stopQueue[0]?.depth}`);
 
-            await processInBatches(toProcess, spawnTripWorker, 8, (result) => {
+            await processInBatches(toProcess, stop => spawnTripWorker({...stop, date}), 8, (result) => {
                 //console.log('trip onResult nextStops:', result?.nextStops?.length);
                 if (!Array.isArray(result)) return;
 
@@ -485,7 +498,7 @@ async function recursiveDrivingDistanceWorkers(startNode, startTime, maxWalkCost
     };
 }
 
-async function heatmapWithTransportWorkers(lat, lng, time, starttime) {
+async function heatmapWithTransportWorkers(lat, lng, time, starttime, date) {
     const ongrid = await pool.query(
         `SELECT *
         FROM ped_edges_vertices_pgr pe 
@@ -493,8 +506,8 @@ async function heatmapWithTransportWorkers(lat, lng, time, starttime) {
         LIMIT 1;`,
         [lng, lat]);
 
-    return recursiveDrivingDistanceWorkers(ongrid.rows[0].id, starttime, time)
+    return recursiveDrivingDistanceWorkers(ongrid.rows[0].id, starttime, time, date)
 
 }
 
-module.exports = { heatmapByFoot, heatmapWithTransport, heatmapWithTransportWorkers };
+module.exports = {SCHEDULE_DATES, heatmapByFoot, heatmapWithTransport, heatmapWithTransportWorkers };

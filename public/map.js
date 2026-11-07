@@ -118,8 +118,6 @@ function buildBandControls(container = document.getElementById('band-controls'))
 
 buildBandControls();
 
-// schedule 
-const scheduleType = document.querySelector('input[name="schedule-type"]:checked').value; // mix | work | vac
 
 // ── Markers ──────────────────────────────────────────────────────────────────
 const markers = [];
@@ -153,6 +151,8 @@ async function addMarker(latlng) {
   setStatus(`Marker placed at ${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}`);
 
   const selected = document.querySelector('input[name="my-group"]:checked');
+  const scheduleType = document.querySelector('input[name="schedule-type"]:checked').value; // mix | work | vac
+
   let funcGeoApi;
   switch(selected?.value){
     case "byFoot":
