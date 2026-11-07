@@ -118,6 +118,9 @@ function buildBandControls(container = document.getElementById('band-controls'))
 
 buildBandControls();
 
+// schedule 
+const scheduleType = document.querySelector('input[name="schedule-type"]:checked').value; // mix | work | vac
+
 // ── Markers ──────────────────────────────────────────────────────────────────
 const markers = [];
 let heatmaps = [];
@@ -167,7 +170,7 @@ async function addMarker(latlng) {
   try {
     const starttime = `${document.getElementById('val-hours').textContent}:${document.getElementById('val-minutes').textContent}:00`;
     const time = parseFloat(document.getElementById('val-duration').textContent)
-    const data = await funcGeoApi(latlng, time, starttime);  // e.latlng = { lat, lng }
+    const data = await funcGeoApi(latlng, time, starttime, scheduleType);  // e.latlng = { lat, lng }
     //console.log(data);
     // const dataRows = data.rows[0];
     // const dataMarker = L.marker(L.latLng(dataRows.stop_lat, dataRows.stop_lon), { icon: customIcon })

@@ -106,7 +106,7 @@ header {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--muted);
-  margin-bottom: 0.75rem;
+  /*margin-bottom: 0.75rem;*/
 }
 
 /* Tile selector */
@@ -428,9 +428,9 @@ footer {
 }
 
 /* ── Time dial ── */
-.time-dial-wrapper { display: flex; gap: 8px; align-items: flex-start; }
+.time-dial-wrapper { display: flex; align-items: flex-start; }
 
-.dial { position: relative; display: inline-flex; flex-direction: column; gap: 4px; }
+.dial { position: relative; display: inline-flex; flex-direction: column; }
 
 .dial-label {
   font-family: 'DM Mono', monospace;
@@ -498,4 +498,20 @@ footer {
   color: var(--border);
   padding-top: 26px;
   line-height: 1;
+}
+
+/* horizontal variant of .radio-group, 3-across */
+.radio-group-row {
+  flex-direction: row;
+  gap: 6px;
+}
+
+.radio-group-row label {
+  flex: 1;
+  justify-content: center;
+  padding: 7px 6px;
+}
+
+.radio-group-row label::before {
+  display: none; /* dot indicator doesn't fit a compact 3-up row */
 }
